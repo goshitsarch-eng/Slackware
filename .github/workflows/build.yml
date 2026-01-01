@@ -47,7 +47,11 @@ jobs:
             squashfs-tools \
             cpio \
             curl \
-            rsync
+            rsync \
+            xz-utils \
+            lz4 \
+            zstd \
+            file
 
       - name: Cache Slackware ISO
         uses: actions/cache@v4

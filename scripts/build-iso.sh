@@ -74,8 +74,34 @@ echo ">>> Modifying initrd to auto-run installer..."
 mkdir -p "$INITRD_WORK"
 cd "$INITRD_WORK"
 
-# Extract initrd (it's gzipped cpio)
-gzip -dc "$ISO_WORK/isolinux/initrd.img" | cpio -idm 2>/dev/null
+# Detect initrd compression format and extract
+INITRD_FILE="$ISO_WORK/isolinux/initrd.img"
+INITRD_FORMAT=$(file "$INITRD_FILE" | head -1)
+echo ">>> Initrd format: $INITRD_FORMAT"
+
+if echo "$INITRD_FORMAT" | grep -q "gzip"; then
+    gzip -dc "$INITRD_FILE" | cpio -idm 2>/dev/null
+    INITRD_COMPRESS="gzip -9"
+elif echo "$INITRD_FORMAT" | grep -q "XZ"; then
+    xz -dc "$INITRD_FILE" | cpio -idm 2>/dev/null
+    INITRD_COMPRESS="xz --check=crc32"
+elif echo "$INITRD_FORMAT" | grep -q "LZMA"; then
+    lzma -dc "$INITRD_FILE" | cpio -idm 2>/dev/null
+    INITRD_COMPRESS="lzma"
+elif echo "$INITRD_FORMAT" | grep -q "LZ4"; then
+    lz4 -dc "$INITRD_FILE" | cpio -idm 2>/dev/null
+    INITRD_COMPRESS="lz4 -l"
+elif echo "$INITRD_FORMAT" | grep -q "Zstandard"; then
+    zstd -dc "$INITRD_FILE" | cpio -idm 2>/dev/null
+    INITRD_COMPRESS="zstd"
+elif echo "$INITRD_FORMAT" | grep -q "cpio"; then
+    # Uncompressed cpio
+    cpio -idm < "$INITRD_FILE" 2>/dev/null
+    INITRD_COMPRESS="cat"
+else
+    echo "ERROR: Unknown initrd format: $INITRD_FORMAT" >&2
+    exit 1
+fi
 
 # Copy installer script into initrd
 cp "$SCRIPT_DIR/gosh-slack-installer.sh" "$INITRD_WORK/usr/bin/gosh-slack-installer"
@@ -150,9 +176,9 @@ if [[ -f "$INITRD_WORK/etc/rc.d/rc.S" ]]; then
 # Gosh Slack Auto-Installer hook\n/etc/rc.d/rc.gosh\n' "$INITRD_WORK/etc/rc.d/rc.S"
 fi
 
-# Repack initrd
-echo ">>> Repacking initrd..."
-find . | cpio -o -H newc 2>/dev/null | gzip -9 > "$ISO_WORK/isolinux/initrd.img"
+# Repack initrd with same compression format
+echo ">>> Repacking initrd with: $INITRD_COMPRESS"
+find . | cpio -o -H newc 2>/dev/null | $INITRD_COMPRESS > "$ISO_WORK/isolinux/initrd.img"
 cd "$WORK_DIR"
 
 #=============================================================================
