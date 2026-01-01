@@ -13,8 +13,8 @@ WORK_DIR="${WORK_DIR:-/tmp/gosh-slack-build}"
 OUTPUT_DIR="${OUTPUT_DIR:-$(pwd)/output}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Slackware mirror
-MIRROR="https://mirrors.slackware.com/slackware"
+# Slackware mirror (use direct mirror, not the redirector)
+MIRROR="https://slackware.osuosl.org"
 if [[ "$SLACK_ARCH" == "64" ]]; then
     ISO_NAME="slackware64-${SLACK_VERSION}-install-dvd.iso"
     ISO_URL="${MIRROR}/slackware64-${SLACK_VERSION}-iso/${ISO_NAME}"
@@ -37,9 +37,19 @@ INITRD_WORK="$WORK_DIR/initrd-work"
 # DOWNLOAD ISO
 #=============================================================================
 if [[ ! -f "$ORIG_ISO" ]]; then
-    echo ">>> Downloading Slackware ISO..."
-    curl -L -o "$ORIG_ISO" "$ISO_URL"
+    echo ">>> Downloading Slackware ISO from $ISO_URL..."
+    curl -fL --progress-bar -o "$ORIG_ISO" "$ISO_URL"
 fi
+
+# Verify we got an actual ISO (should be at least 1GB)
+ISO_SIZE=$(stat -c%s "$ORIG_ISO" 2>/dev/null || stat -f%z "$ORIG_ISO" 2>/dev/null)
+if [[ "$ISO_SIZE" -lt 1000000000 ]]; then
+    echo "Error: Downloaded file is too small (${ISO_SIZE} bytes). Expected ISO to be > 1GB" >&2
+    echo "The mirror may be down or the URL may be incorrect." >&2
+    rm -f "$ORIG_ISO"
+    exit 1
+fi
+echo ">>> ISO verified: $(numfmt --to=iec-i --suffix=B "$ISO_SIZE" 2>/dev/null || echo "${ISO_SIZE} bytes")"
 
 #=============================================================================
 # EXTRACT ISO
