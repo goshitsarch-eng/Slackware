@@ -85,7 +85,10 @@ Output: `output/gosh-slack-15.0-64.iso`
 
 ### Build Options
 
+To build a different version:
+
 ```bash
+# Build Slackware 14.2 (32-bit) instead of default 15.0 (64-bit)
 SLACK_VERSION=14.2 SLACK_ARCH=32 sudo -E ./scripts/build-iso.sh
 ```
 
