@@ -60,9 +60,13 @@ jobs:
         run: |
           sudo mkdir -p /tmp/gosh-slack-build
           sudo chmod 777 /tmp/gosh-slack-build
-          
+          mkdir -p output
+
           # Run build script
           sudo bash scripts/build-iso.sh
+
+          # Fix ownership so subsequent steps can access files
+          sudo chown -R $USER:$USER output
         env:
           SLACK_VERSION: ${{ env.SLACK_VERSION }}
           SLACK_ARCH: ${{ env.SLACK_ARCH }}
