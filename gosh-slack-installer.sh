@@ -190,7 +190,19 @@ sleep 5
 # PARTITION
 #=============================================================================
 echo ">>> Partitioning $TARGET_DISK ($BOOT_MODE mode)..."
-wipefs -af "$TARGET_DISK"
+if command -v wipefs >/dev/null 2>&1; then
+    wipefs -af "$TARGET_DISK"
+elif command -v sgdisk >/dev/null 2>&1; then
+    sgdisk --zap-all "$TARGET_DISK"
+else
+    # Fallback: clear the first/last 10MiB to remove old signatures/partition tables.
+    DISK_SIZE_BYTES=$(blockdev --getsize64 "$TARGET_DISK")
+    DISK_SIZE_MB=$(( DISK_SIZE_BYTES / 1048576 ))
+    dd if=/dev/zero of="$TARGET_DISK" bs=1M count=10 conv=fsync
+    if [[ "$DISK_SIZE_MB" -gt 20 ]]; then
+        dd if=/dev/zero of="$TARGET_DISK" bs=1M count=10 seek=$(( DISK_SIZE_MB - 10 )) conv=fsync
+    fi
+fi
 
 if [[ "$BOOT_MODE" == "uefi" ]]; then
     # GPT with EFI System Partition
