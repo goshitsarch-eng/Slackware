@@ -15,7 +15,7 @@ Fully automated Slackware Linux installer. Boot the ISO, walk away, come back to
 1. Download the latest ISO from [Releases](../../releases)
 2. Write to USB: `dd if=gosh-slack-*.iso of=/dev/sdX bs=4M status=progress`
 3. Boot the target machine from USB
-4. Select **"Gosh Slack Auto-Install"** from the boot menu
+4. Press Enter to start auto-install (default). If you see a `boot:` prompt, type `gosh` or `gosh-reboot`
 5. Wait ~15-30 minutes
 6. Remove USB and reboot
 
@@ -24,7 +24,7 @@ Fully automated Slackware Linux installer. Boot the ISO, walk away, come back to
 | Option | Description |
 |--------|-------------|
 | Gosh Slack Auto-Install | Standard install, manual reboot |
-| Gosh Slack Auto-Install (Custom) | Install + automatic reboot |
+| Gosh Slack Auto-Install (Auto-Reboot) | Install + automatic reboot |
 
 ## Kernel Parameters
 

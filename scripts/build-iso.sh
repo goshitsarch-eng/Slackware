@@ -169,11 +169,18 @@ fi
 GOSH_HOOK
 chmod +x "$INITRD_WORK/etc/rc.d/rc.gosh"
 
-# Hook into rc.S to run our script (add before the shell prompt)
+# Hook into rc.S to run our script (add before the shell prompt when possible)
 if [[ -f "$INITRD_WORK/etc/rc.d/rc.S" ]]; then
-    # Add hook near the end of rc.S, before it drops to shell
-    sed -i '/# Start a shell/i \
+    if ! grep -q "/etc/rc.d/rc.gosh" "$INITRD_WORK/etc/rc.d/rc.S"; then
+        if grep -q "# Start a shell" "$INITRD_WORK/etc/rc.d/rc.S"; then
+            # Add hook near the end of rc.S, before it drops to shell
+            sed -i '/# Start a shell/i \
 # Gosh Slack Auto-Installer hook\n/etc/rc.d/rc.gosh\n' "$INITRD_WORK/etc/rc.d/rc.S"
+        else
+            # Fallback: append hook if the marker comment isn't present
+            printf '\n# Gosh Slack Auto-Installer hook\n/etc/rc.d/rc.gosh\n' >> "$INITRD_WORK/etc/rc.d/rc.S"
+        fi
+    fi
 fi
 
 # Repack initrd with same compression format
@@ -187,8 +194,9 @@ cd "$WORK_DIR"
 echo ">>> Adding boot menu entries..."
 
 # Add custom boot entry to isolinux
-if [[ -f "$ISO_WORK/isolinux/isolinux.cfg" ]]; then
-    cat >> "$ISO_WORK/isolinux/isolinux.cfg" <<'EOF'
+ISOLINUX_CFG="$ISO_WORK/isolinux/isolinux.cfg"
+if [[ -f "$ISOLINUX_CFG" ]]; then
+    cat >> "$ISOLINUX_CFG" <<'EOF'
 
 LABEL gosh
   MENU LABEL ^Gosh Slack Auto-Install
@@ -200,11 +208,25 @@ LABEL gosh-reboot
   KERNEL /kernels/huge.s/bzImage
   APPEND initrd=/isolinux/initrd.img load_ramdisk=1 prompt_ramdisk=0 rw SLACK_KERNEL=huge.s gosh_auto=1 gosh_reboot=true
 EOF
+
+    # Make the auto-install entry the default so pressing Enter boots it.
+    if grep -qiE '^[[:space:]]*DEFAULT[[:space:]]+' "$ISOLINUX_CFG"; then
+        sed -i -E 's/^[[:space:]]*DEFAULT[[:space:]]+.*/DEFAULT gosh/I' "$ISOLINUX_CFG"
+    else
+        tmp_cfg="${ISOLINUX_CFG}.new"
+        {
+            echo "DEFAULT gosh"
+            cat "$ISOLINUX_CFG"
+        } > "$tmp_cfg"
+        mv "$tmp_cfg" "$ISOLINUX_CFG"
+    fi
 fi
 
 # Add to EFI boot if present
-if [[ -f "$ISO_WORK/EFI/BOOT/grub.cfg" ]]; then
-    cat >> "$ISO_WORK/EFI/BOOT/grub.cfg" <<'EOF'
+GRUB_CFG="$ISO_WORK/EFI/BOOT/grub.cfg"
+if [[ -f "$GRUB_CFG" ]]; then
+    tmp_cfg="${GRUB_CFG}.new"
+    cat > "$tmp_cfg" <<'EOF'
 
 menuentry "Gosh Slack Auto-Install" {
     linux /kernels/huge.s/bzImage load_ramdisk=1 prompt_ramdisk=0 rw SLACK_KERNEL=huge.s gosh_auto=1
@@ -216,6 +238,15 @@ menuentry "Gosh Slack Auto-Install (Auto-Reboot)" {
     initrd /isolinux/initrd.img
 }
 EOF
+    cat "$GRUB_CFG" >> "$tmp_cfg"
+    mv "$tmp_cfg" "$GRUB_CFG"
+
+    # Make the auto-install entry the default in GRUB.
+    if grep -qiE '^[[:space:]]*set[[:space:]]+default=' "$GRUB_CFG"; then
+        sed -i -E 's/^[[:space:]]*set[[:space:]]+default=.*/set default=0/I' "$GRUB_CFG"
+    else
+        sed -i '1i set default=0' "$GRUB_CFG"
+    fi
 fi
 
 #=============================================================================
